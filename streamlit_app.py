@@ -1,56 +1,73 @@
 import streamlit as st
-from openai import OpenAI
+import requests
+from dotenv import load_dotenv
+import os
+import json
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
-)
+# Carregar variáveis de ambiente do arquivo .env
+load_dotenv()
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# Obter valores das variáveis de ambiente
+API_URL = os.getenv("LANGFLOW_API_URL")
+API_TOKEN = os.getenv("LANGFLOW_API_TOKEN")
+API_DATA = os.getenv("LANGFLOW_API_DATA")
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+# Verificar se as variáveis de ambiente foram configuradas corretamente
+if not API_URL or not API_TOKEN or not API_DATA:
+    st.error("Variáveis de ambiente LANGFLOW_API_URL, LANGFLOW_API_TOKEN e LANGFLOW_API_DATA não configuradas.")
+    st.stop()
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# Converter API_DATA de string para dicionário
+try:
+    API_DATA = json.loads(API_DATA)
+except json.JSONDecodeError:
+    st.error("O formato do JSON em LANGFLOW_API_DATA é inválido.")
+    st.stop()
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+st.title("📄 Smart Doc Assistant")
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+"""
+Olá! Eu sou o Smart Doc Assistant, seu assistente inteligente para consultas e resumos de documentos. 
+Envie suas perguntas e eu ajudo a encontrar as respostas nos documentos com rapidez e precisão.
+"""
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+# Inicializar o estado da sessão para armazenar o histórico de conversas
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [{"role": "assistant", "content": "Olá! Como posso ajudar com seus documentos hoje?"}]
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
+# Exibir mensagens de chat do histórico da sessão
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
+# Aceitar entrada do usuário
+if prompt := st.chat_input("Digite uma mensagem para o assistente:"):
+    # Adicionar a mensagem do usuário ao histórico
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Enviar solicitação para a API do Langflow
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_TOKEN}"
+        }
+        # Atualizar o valor do input no JSON carregado
+        API_DATA["input_value"] = prompt
+
+        response = requests.post(API_URL, headers=headers, json=API_DATA)
+        response_data = response.json()
+
+        # Extrair a resposta do assistente
+        assistant_message = response_data["outputs"][0]["outputs"][0]["results"]["message"]["text"]
+
+        # Exibir mensagem do assistente no chat
         with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+            st.markdown(assistant_message)
+
+        # Adicionar mensagem do assistente ao histórico de conversas
+        st.session_state.messages.append({"role": "assistant", "content": assistant_message})
+
+    except Exception as e:
+        st.error(f"Erro ao consultar a API: {e}")
