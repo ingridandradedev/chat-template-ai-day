@@ -11,6 +11,8 @@ load_dotenv()
 API_URL = os.getenv("LANGFLOW_API_URL")
 API_TOKEN = os.getenv("LANGFLOW_API_TOKEN")
 API_DATA = os.getenv("LANGFLOW_API_DATA")
+AI_AGENT_TITLE = os.getenv("AI_AGENT_TITLE")
+AI_AGENT_DESCRIPTION = os.getenv("AI_AGENT_DESCRIPTION")
 
 # Verificar se as variáveis de ambiente foram configuradas corretamente
 if not API_URL or not API_TOKEN or not API_DATA:
@@ -24,12 +26,10 @@ except json.JSONDecodeError:
     st.error("O formato do JSON em LANGFLOW_API_DATA é inválido.")
     st.stop()
 
-st.title("📄 Smart Doc Assistant")
+# Usar as variáveis de ambiente no título e na descrição
+st.title(AI_AGENT_TITLE)
 
-"""
-Olá! Eu sou o Smart Doc Assistant, seu assistente inteligente para consultas e resumos de documentos. 
-Envie suas perguntas e eu ajudo a encontrar as respostas nos documentos com rapidez e precisão.
-"""
+st.markdown(AI_AGENT_DESCRIPTION)
 
 # Inicializar o estado da sessão para armazenar o histórico de conversas
 if "messages" not in st.session_state:
